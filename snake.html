@@ -24,7 +24,9 @@
       letter-spacing: 0.1em;
     }
     #scoreboard span { color: #4ade80; font-weight: bold; }
+    #game-wrap { position: relative; display: inline-block; }
     canvas {
+      display: block;
       border: 2px solid #4ade80;
       box-shadow: 0 0 20px #4ade8066;
     }
@@ -32,6 +34,66 @@
       margin-top: 16px;
       font-size: 0.9rem;
       color: #aaa;
+      letter-spacing: 0.1em;
+    }
+
+    /* Cheat menu */
+    #cheat-menu {
+      display: none;
+      position: absolute;
+      inset: 0;
+      background: rgba(10, 10, 30, 0.93);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 10;
+    }
+    #cheat-menu.open { display: flex; }
+    #cheat-title {
+      font-size: 1.3rem;
+      letter-spacing: 0.25em;
+      color: #facc15;
+      text-shadow: 0 0 12px #facc1588;
+      margin-bottom: 6px;
+    }
+    #cheat-subtitle {
+      font-size: 0.7rem;
+      color: #666;
+      letter-spacing: 0.15em;
+      margin-top: -10px;
+      margin-bottom: 4px;
+    }
+    .cheat-btn {
+      width: 260px;
+      padding: 10px 16px;
+      background: #12122a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #ccc;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .cheat-btn:hover { border-color: #facc15; color: #facc15; }
+    .cheat-btn.active { border-color: #4ade80; color: #4ade80; background: #0d2018; }
+    .cheat-btn .tag {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: #222;
+      color: #555;
+    }
+    .cheat-btn.active .tag { background: #1a3a25; color: #4ade80; }
+    #cheat-close {
+      margin-top: 6px;
+      font-size: 0.75rem;
+      color: #444;
       letter-spacing: 0.1em;
     }
   </style>
@@ -42,7 +104,26 @@
     SCORE: <span id="score">0</span>
     &nbsp;&nbsp;BEST: <span id="best">0</span>
   </div>
-  <canvas id="canvas" width="400" height="400"></canvas>
+  <div id="game-wrap">
+    <canvas id="canvas" width="400" height="400"></canvas>
+    <div id="cheat-menu">
+      <div id="cheat-title">&#x2605; CHEAT MENU &#x2605;</div>
+      <div id="cheat-subtitle">KONAMI CODE UNLOCKED</div>
+      <button class="cheat-btn" id="btn-god">
+        <span>God Mode</span><span class="tag">OFF</span>
+      </button>
+      <button class="cheat-btn" id="btn-slow">
+        <span>Slow Motion</span><span class="tag">OFF</span>
+      </button>
+      <button class="cheat-btn" id="btn-fast">
+        <span>Speed Demon</span><span class="tag">OFF</span>
+      </button>
+      <button class="cheat-btn" id="btn-big">
+        <span>Big Snake</span><span class="tag">OFF</span>
+      </button>
+      <div id="cheat-close">Press ESC or ENTER to close</div>
+    </div>
+  </div>
   <div id="message">Press SPACE or ENTER to start &nbsp;|&nbsp; Arrow keys or WASD to move</div>
 
   <script>
@@ -51,10 +132,65 @@
     const scoreEl = document.getElementById('score');
     const bestEl = document.getElementById('best');
     const msgEl = document.getElementById('message');
+    const cheatMenu = document.getElementById('cheat-menu');
 
     const CELL = 20;
     const COLS = canvas.width / CELL;
     const ROWS = canvas.height / CELL;
+
+    // Cheats
+    const cheats = { god: false, slow: false, fast: false, big: false };
+
+    function setupCheatBtn(id, key) {
+      const btn = document.getElementById(id);
+      btn.addEventListener('click', () => toggleCheat(key, btn));
+      return btn;
+    }
+    const btnGod  = setupCheatBtn('btn-god',  'god');
+    const btnSlow = setupCheatBtn('btn-slow', 'slow');
+    const btnFast = setupCheatBtn('btn-fast', 'fast');
+    const btnBig  = setupCheatBtn('btn-big',  'big');
+
+    function toggleCheat(key, btn) {
+      // slow and fast are mutually exclusive
+      if (key === 'slow' && cheats.fast) { cheats.fast = false; syncBtn(btnFast, 'fast'); }
+      if (key === 'fast' && cheats.slow) { cheats.slow = false; syncBtn(btnSlow, 'slow'); }
+      cheats[key] = !cheats[key];
+      syncBtn(btn, key);
+      if (running) applySpeed();
+    }
+
+    function syncBtn(btn, key) {
+      const tag = btn.querySelector('.tag');
+      if (cheats[key]) { btn.classList.add('active'); tag.textContent = 'ON'; }
+      else { btn.classList.remove('active'); tag.textContent = 'OFF'; }
+    }
+
+    function applySpeed() {
+      clearInterval(gameLoop);
+      const speed = cheats.fast ? 55 : cheats.slow ? 220 : 120;
+      gameLoop = setInterval(tick, speed);
+    }
+
+    // Konami code detector
+    const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+    let konamiPos = 0;
+
+    function openCheatMenu() {
+      cheatMenu.classList.add('open');
+      if (running && !paused) {
+        clearInterval(gameLoop);
+        paused = true;
+      }
+    }
+    function closeCheatMenu() {
+      cheatMenu.classList.remove('open');
+      if (running && paused) {
+        paused = false;
+        applySpeed();
+        msgEl.textContent = 'Arrow keys or WASD to move  |  P to pause';
+      }
+    }
 
     let snake, dir, nextDir, food, score, best, running, gameLoop;
 
@@ -62,7 +198,9 @@
     bestEl.textContent = best;
 
     function initGame() {
-      snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+      const startLen = cheats.big ? 10 : 3;
+      snake = [];
+      for (let i = 0; i < startLen; i++) snake.push({ x: 10 - i, y: 10 });
       dir = { x: 1, y: 0 };
       nextDir = { x: 1, y: 0 };
       score = 0;
@@ -81,15 +219,21 @@
 
     function tick() {
       dir = nextDir;
-      const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+      let head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
 
-      // Wall collision
-      if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) {
-        return endGame();
-      }
-      // Self collision
-      if (snake.some(s => s.x === head.x && s.y === head.y)) {
-        return endGame();
+      if (cheats.god) {
+        // Wrap around walls
+        head.x = (head.x + COLS) % COLS;
+        head.y = (head.y + ROWS) % ROWS;
+        // Skip self-collision
+        if (snake.some(s => s.x === head.x && s.y === head.y)) {
+          snake.pop();
+          snake.unshift(head);
+          draw(); return;
+        }
+      } else {
+        if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return endGame();
+        if (snake.some(s => s.x === head.x && s.y === head.y)) return endGame();
       }
 
       snake.unshift(head);
@@ -114,6 +258,12 @@
       ctx.fillStyle = '#0f0f23';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // God mode tint
+      if (cheats.god) {
+        ctx.fillStyle = 'rgba(250,204,21,0.04)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
       // Grid dots
       ctx.fillStyle = '#1e1e3a';
       for (let x = 0; x < COLS; x++) {
@@ -134,28 +284,32 @@
       ctx.shadowBlur = 0;
 
       // Snake
+      const godColor = cheats.god;
       snake.forEach((seg, i) => {
         const t = i / snake.length;
-        const green = Math.round(200 - t * 80);
-        ctx.fillStyle = i === 0 ? '#4ade80' : `rgb(30, ${green}, 80)`;
-        if (i === 0) {
-          ctx.shadowColor = '#4ade80';
-          ctx.shadowBlur = 12;
+        if (godColor) {
+          const g = Math.round(200 - t * 80);
+          ctx.fillStyle = i === 0 ? '#facc15' : `rgb(${Math.round(180-t*60)}, ${g}, 20)`;
+          if (i === 0) { ctx.shadowColor = '#facc15'; ctx.shadowBlur = 14; }
+          else ctx.shadowBlur = 0;
         } else {
-          ctx.shadowBlur = 0;
+          const green = Math.round(200 - t * 80);
+          ctx.fillStyle = i === 0 ? '#4ade80' : `rgb(30, ${green}, 80)`;
+          if (i === 0) { ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 12; }
+          else ctx.shadowBlur = 0;
         }
         ctx.fillRect(seg.x * CELL + 1, seg.y * CELL + 1, CELL - 2, CELL - 2);
       });
       ctx.shadowBlur = 0;
 
-      // Eyes on head
+      // Eyes
       const h = snake[0];
       ctx.fillStyle = '#000';
-      const ex = dir.x === 1 ? 13 : dir.x === -1 ? 4 : 6;
-      const ey = dir.y === 1 ? 13 : dir.y === -1 ? 4 : 6;
+      const ex  = dir.x === 1 ? 13 : dir.x === -1 ? 4 : 6;
+      const ey  = dir.y === 1 ? 13 : dir.y === -1 ? 4 : 6;
       const ex2 = dir.x !== 0 ? ex : 13;
       ctx.beginPath();
-      ctx.arc(h.x * CELL + ex, h.y * CELL + ey, 2, 0, Math.PI * 2);
+      ctx.arc(h.x * CELL + ex,  h.y * CELL + ey, 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
       ctx.arc(h.x * CELL + ex2, h.y * CELL + (dir.x !== 0 ? 13 : ey), 2, 0, Math.PI * 2);
@@ -175,27 +329,42 @@
       ctx.fillStyle = '#e0e0e0';
       ctx.font = '1rem Courier New';
       ctx.fillText(`Score: ${score}`, canvas.width / 2, canvas.height / 2 + 16);
-
       msgEl.textContent = 'Press SPACE or ENTER to play again';
     }
 
     function startGame() {
       if (running) return;
       running = true;
+      paused = false;
       initGame();
       draw();
-      const speed = 120;
-      gameLoop = setInterval(tick, speed);
+      applySpeed();
     }
 
     let paused = false;
+
     document.addEventListener('keydown', e => {
       const key = e.key;
 
-      if ((key === ' ' || key === 'Enter') && !running) {
-        startGame();
+      // Konami detector (runs always)
+      if (key === KONAMI[konamiPos]) {
+        konamiPos++;
+        if (konamiPos === KONAMI.length) {
+          konamiPos = 0;
+          openCheatMenu();
+          return;
+        }
+      } else {
+        konamiPos = key === KONAMI[0] ? 1 : 0;
+      }
+
+      // Cheat menu open: only ESC/Enter closes it
+      if (cheatMenu.classList.contains('open')) {
+        if (key === 'Escape' || key === 'Enter') closeCheatMenu();
         return;
       }
+
+      if ((key === ' ' || key === 'Enter') && !running) { startGame(); return; }
 
       if (key === 'p' || key === 'P') {
         if (!running) return;
@@ -204,7 +373,7 @@
           clearInterval(gameLoop);
           msgEl.textContent = 'PAUSED — press P to resume';
         } else {
-          gameLoop = setInterval(tick, 120);
+          applySpeed();
           msgEl.textContent = 'Arrow keys or WASD to move  |  P to pause';
         }
         return;
