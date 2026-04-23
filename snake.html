@@ -108,7 +108,7 @@
     <canvas id="canvas" width="400" height="400"></canvas>
     <div id="cheat-menu">
       <div id="cheat-title">&#x2605; CHEAT MENU &#x2605;</div>
-      <div id="cheat-subtitle">KONAMI CODE UNLOCKED</div>
+      <div id="cheat-subtitle">PRESS \ TO TOGGLE</div>
       <button class="cheat-btn" id="btn-god">
         <span>God Mode</span><span class="tag">OFF</span>
       </button>
@@ -171,10 +171,6 @@
       const speed = cheats.fast ? 55 : cheats.slow ? 220 : 120;
       gameLoop = setInterval(tick, speed);
     }
-
-    // Konami code detector
-    const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
-    let konamiPos = 0;
 
     function openCheatMenu() {
       cheatMenu.classList.add('open');
@@ -346,17 +342,8 @@
     document.addEventListener('keydown', e => {
       const key = e.key;
 
-      // Konami detector (runs always)
-      if (key === KONAMI[konamiPos]) {
-        konamiPos++;
-        if (konamiPos === KONAMI.length) {
-          konamiPos = 0;
-          openCheatMenu();
-          return;
-        }
-      } else {
-        konamiPos = key === KONAMI[0] ? 1 : 0;
-      }
+      // Toggle cheat menu with backslash
+      if (key === '\\') { cheatMenu.classList.contains('open') ? closeCheatMenu() : openCheatMenu(); return; }
 
       // Cheat menu open: only ESC/Enter closes it
       if (cheatMenu.classList.contains('open')) {
